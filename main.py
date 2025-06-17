@@ -76,12 +76,12 @@ if st.session_state.page == 'home':
     
     st.header("🎯 학습 목표 설정")
     current_goal = st.session_state.user_goal
-    # 오류 수정: st.text_input 문자열 닫는 따옴표 추가
     new_goal = st.text_input("복습 앱을 통해 달성하고 싶은 학습 목표를 입력해주세요. (예: 파이썬 문법 마스터하기, 영어 단어 1000개 암기)", value=current_goal)
     if st.button("목표 설정 및 저장"):
         st.session_state.user_goal = new_goal
         st.success(f"학습 목표가 '{new_goal}'으로 설정되었습니다!")
-        st.experimental_rerun() # 사이드바 업데이트를 위해 새로고침
+        # 오류 수정: st.experimental_rerun() 대신 st.rerun() 사용
+        st.rerun() # 사이드바 업데이트를 위해 새로고침
 
     st.markdown("---")
     st.write("새로운 지식을 추가하고 복습 스케줄을 시작하려면 '새 노트 추가' 메뉴를 이용해주세요.")
@@ -259,7 +259,7 @@ elif st.session_state.page == 'review':
                     difficulty_chosen = True
             with col2:
                 if st.button("🙂 보통", key=f"diff_normal_{current_note['id']}_{st.session_state.current_review_index}"):
-                    selected_difficulty = "보통"
+                    selected_difficulty = " 보통"
                     difficulty_chosen = True
             with col3:
                 if st.button("🙁 어려웠음", key=f"diff_hard_{current_note['id']}_{st.session_state.current_review_index}"):
