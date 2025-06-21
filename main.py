@@ -363,23 +363,22 @@ elif st.session_state.page == 'manual_review':
         # 복습 진행 중이 아니라면 (처음 페이지 진입 또는 복습 완료 후) 노트 선택 UI 표시
         # manual_review 페이지에 들어왔을 때, 선택된 노트가 없고 (초기상태), 현재 복습 인덱스도 0이면 노트 선택 UI를 보여줌.
         # 즉, 복습이 시작되기 전이거나 완료된 후 초기 상태로 돌아왔을 때만 선택 UI를 보여줌.
-        if not st.session_state.selected_review_notes and st.session_state.current_review_index == 0:
+        # 주의: 이전에 선택했던 노트 목록을 다시 로드할 필요가 없으므로 selected_review_notes 초기화 조건 제거
+        if st.session_state.current_review_index == 0 and not st.session_state.selected_review_notes:
             st.subheader("📚 복습할 노트 선택")
             
-            # 모든 노트를 데이터프레임으로 보여주기
             display_notes = []
             for note in st.session_state.notes:
-                # 사용자가 이전에 선택했던 노트는 미리 체크된 상태로 보여주기
-                is_selected = note['id'] in [n['id'] for n in st.session_state.selected_review_notes]
+                # '선택' 컬럼의 초기값은 항상 False로 설정하여 사용자가 매번 다시 선택하도록 유도
+                # 또는 세션 상태에 마지막 선택값을 저장하여 유지할 수도 있지만, 여기서는 초기화 상태로 가정
                 display_notes.append({
                     "id": note['id'],
-                    "선택": is_selected, 
+                    "선택": False,
                     "제목": note['title'],
                     "유형": note['type'].split('(')[0],
                     "다음 복습일": note['next_review_date'].strftime('%Y-%m-%d')
                 })
             
-            # 선택 가능하도록 Streamlit의 data_editor 사용 (Streamlit 1.23.0 이상 필요)
             edited_df = st.data_editor(
                 pd.DataFrame(display_notes),
                 column_config={"선택": st.column_config.CheckboxColumn(required=True)},
@@ -387,7 +386,6 @@ elif st.session_state.page == 'manual_review':
                 key="manual_review_select_notes_editor"
             )
 
-            # 선택된 노트 ID 추출 및 세션 상태 업데이트
             selected_notes_from_editor_ids = edited_df[edited_df["선택"] == True]["id"].tolist()
             st.session_state.selected_review_notes = [note for note in st.session_state.notes if note['id'] in selected_notes_from_editor_ids]
 
@@ -402,7 +400,8 @@ elif st.session_state.page == 'manual_review':
         
         # 복습이 시작되었거나 진행 중인 경우, 또는 모든 복습이 완료된 경우
         # review_module 내부에서 모든 상태 관리 및 UI 표시를 담당
-        review_module(st.session_state.selected_review_notes)
+        else: # 이미 노트가 선택되었거나 복습이 진행 중일 때만 review_module 호출
+            review_module(st.session_state.selected_review_notes)
 
 
 # --- 내 학습 통계 페이지 ---
