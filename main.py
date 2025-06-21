@@ -349,7 +349,7 @@ elif st.session_state.page == 'review':
     review_module(st.session_state.today_review_items)
 
 
-## --- 선택 복습 페이지 ---
+# --- 선택 복습 페이지 ---
 elif st.session_state.page == 'manual_review':
     st.title("📖 원하는 노트 선택해서 복습하기")
     st.write("복습하고 싶은 노트를 직접 선택하고 집중적으로 학습해 보세요.")
@@ -360,12 +360,10 @@ elif st.session_state.page == 'manual_review':
         if st.button("새 노트 추가하러 가기", key="manual_review_go_add_note"):
             go_to_page('add_note')
     else:
-        # 복습 시작 전, 노트 선택 UI
         if st.session_state.current_review_index == 0 and not st.session_state.selected_review_notes:
             st.subheader("📚 복습할 노트 선택")
 
             selected_note_ids = []
-
             for note in st.session_state.notes:
                 label = f"[{note['title']}] - 다음 복습일: {note['next_review_date'].strftime('%Y-%m-%d')}"
                 if st.checkbox(label, key=f"select_note_{note['id']}"):
@@ -382,11 +380,27 @@ elif st.session_state.page == 'manual_review':
             else:
                 if st.button(f"선택된 노트 복습 시작 ({len(st.session_state.selected_review_notes)}개)", key="start_manual_review"):
                     st.session_state.current_review_index = 0
-                    st.rerun()  # 복습 모듈 진입
-
+                    st.rerun()
         else:
-            # 선택 완료 또는 복습 진행 중일 경우
             review_module(st.session_state.selected_review_notes)
+
+
+# --- 오늘의 복습 페이지 ---
+elif st.session_state.page == 'review':
+    st.title("📚 오늘의 복습 시작!")
+    st.write("기억을 되살리고 장기 기억으로 전환할 시간입니다!")
+    st.session_state.is_manual_review = False  # 자동 복습 모드
+
+    today = datetime.now().date()
+
+    if not st.session_state.today_review_items or st.session_state.current_review_index == 0:
+        st.session_state.today_review_items = [
+            note for note in st.session_state.notes
+            if note['next_review_date'] and note['next_review_date'] <= today
+        ]
+        st.session_state.today_review_items.sort(key=lambda x: x['next_review_date'])
+
+    review_module(st.session_state.today_review_items)
 
 
 # --- 내 학습 통계 페이지 ---
