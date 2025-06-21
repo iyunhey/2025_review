@@ -180,22 +180,24 @@ def review_module(review_items):
         st.write("**💡 팁:** 새로운 지식을 추가하여 꾸준히 복습 스케줄을 만들어보세요.")
         if st.button("새 노트 추가하러 가기", key="review_go_add_note_common"):
             go_to_page('add_note')
+        # 상태 초기화 후 바로 반환하여 더 이상 코드 실행하지 않음
         st.session_state.current_review_index = 0
-        st.session_state.today_review_items = [] # 오늘의 복습 목록 초기화
-        st.session_state.selected_review_notes = [] # 선택 복습 목록 초기화
-        st.session_state.is_manual_review = False # 수동 복습 상태 초기화
-        return # 복습할 항목이 없으면 함수 종료
+        st.session_state.today_review_items = []
+        st.session_state.selected_review_notes = [] 
+        st.session_state.is_manual_review = False
+        return
 
     # 모든 복습을 완료한 경우
     if st.session_state.current_review_index >= num_to_review:
         st.success("🎉 복습을 모두 완료했습니다! 정말 수고하셨습니다!")
-        st.session_state.today_review_items = [] # 오늘의 복습 목록 초기화
-        st.session_state.selected_review_notes = [] # 선택 복습 목록 초기화
+        # 상태 초기화 후 바로 반환하여 더 이상 코드 실행하지 않음
         st.session_state.current_review_index = 0
+        st.session_state.today_review_items = []
+        st.session_state.selected_review_notes = [] 
         st.session_state.is_manual_review = False
         if st.button("학습 통계 보러가기", key="review_done_stats_common"):
             go_to_page('stats')
-        return # 복습 완료 후 함수 종료
+        return
 
     # 복습 진행 중
     current_note = review_items[st.session_state.current_review_index]
@@ -343,6 +345,7 @@ elif st.session_state.page == 'review':
         st.session_state.today_review_items.sort(key=lambda x: x['next_review_date'])
 
     # 복습 모듈 호출
+    # review_module 내부에서 모든 상태 관리 및 UI 표시를 담당
     review_module(st.session_state.today_review_items)
 
 
@@ -358,7 +361,9 @@ elif st.session_state.page == 'manual_review':
             go_to_page('add_note')
     else:
         # 복습 진행 중이 아니라면 (처음 페이지 진입 또는 복습 완료 후) 노트 선택 UI 표시
-        if st.session_state.current_review_index == 0 and not st.session_state.selected_review_notes:
+        # manual_review 페이지에 들어왔을 때, 선택된 노트가 없고 (초기상태), 현재 복습 인덱스도 0이면 노트 선택 UI를 보여줌.
+        # 즉, 복습이 시작되기 전이거나 완료된 후 초기 상태로 돌아왔을 때만 선택 UI를 보여줌.
+        if not st.session_state.selected_review_notes and st.session_state.current_review_index == 0:
             st.subheader("📚 복습할 노트 선택")
             
             # 모든 노트를 데이터프레임으로 보여주기
@@ -395,17 +400,9 @@ elif st.session_state.page == 'manual_review':
                     st.session_state.current_review_index = 0
                     st.rerun() # 복습 모듈로 진입하기 위해 새로고침
         
-        # 복습 진행 중일 때만 모듈 호출
-        # 이미 복습 시작 버튼을 눌렀거나, 복습 중인 상태에서 새로고침된 경우
-        elif st.session_state.current_review_index < len(st.session_state.selected_review_notes):
-            st.markdown("---")
-            review_module(st.session_state.selected_review_notes)
-        else: # 모든 복습 완료 후 (review_module에서 이미 완료 메시지를 띄웠을 것)
-            # 여기서는 추가적으로 '다시 선택 복습 시작' 버튼만 제공하여 UI를 깔끔하게 유지
-            if st.button("다시 선택 복습 시작", key="reset_manual_review"):
-                st.session_state.selected_review_notes = []
-                st.session_state.current_review_index = 0
-                st.rerun()
+        # 복습이 시작되었거나 진행 중인 경우, 또는 모든 복습이 완료된 경우
+        # review_module 내부에서 모든 상태 관리 및 UI 표시를 담당
+        review_module(st.session_state.selected_review_notes)
 
 
 # --- 내 학습 통계 페이지 ---
