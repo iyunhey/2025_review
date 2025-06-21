@@ -349,45 +349,31 @@ elif st.session_state.page == 'review':
     review_module(st.session_state.today_review_items)
 
 
-# --- 선택 복습 페이지 ---
+## --- 선택 복습 페이지 ---
 elif st.session_state.page == 'manual_review':
     st.title("📖 원하는 노트 선택해서 복습하기")
     st.write("복습하고 싶은 노트를 직접 선택하고 집중적으로 학습해 보세요.")
-    st.session_state.is_manual_review = True # 수동 복습 모드
+    st.session_state.is_manual_review = True  # 수동 복습 모드
 
     if not st.session_state.notes:
         st.info("아직 등록된 노트가 없습니다. '새 노트 추가'에서 복습할 노트를 먼저 생성해주세요!")
         if st.button("새 노트 추가하러 가기", key="manual_review_go_add_note"):
             go_to_page('add_note')
     else:
-        # 복습 진행 중이 아니라면 (처음 페이지 진입 또는 복습 완료 후) 노트 선택 UI 표시
-        # manual_review 페이지에 들어왔을 때, 선택된 노트가 없고 (초기상태), 현재 복습 인덱스도 0이면 노트 선택 UI를 보여줌.
-        # 즉, 복습이 시작되기 전이거나 완료된 후 초기 상태로 돌아왔을 때만 선택 UI를 보여줌.
-        # 주의: 이전에 선택했던 노트 목록을 다시 로드할 필요가 없으므로 selected_review_notes 초기화 조건 제거
+        # 복습 시작 전, 노트 선택 UI
         if st.session_state.current_review_index == 0 and not st.session_state.selected_review_notes:
             st.subheader("📚 복습할 노트 선택")
-            
-            display_notes = []
-            for note in st.session_state.notes:
-                # '선택' 컬럼의 초기값은 항상 False로 설정하여 사용자가 매번 다시 선택하도록 유도
-                # 또는 세션 상태에 마지막 선택값을 저장하여 유지할 수도 있지만, 여기서는 초기화 상태로 가정
-                display_notes.append({
-                    "id": note['id'],
-                    "선택": False,
-                    "제목": note['title'],
-                    "유형": note['type'].split('(')[0],
-                    "다음 복습일": note['next_review_date'].strftime('%Y-%m-%d')
-                })
-            
-            edited_df = st.data_editor(
-                pd.DataFrame(display_notes),
-                column_config={"선택": st.column_config.CheckboxColumn(required=True)},
-                hide_index=True,
-                key="manual_review_select_notes_editor"
-            )
 
-            selected_notes_from_editor_ids = edited_df[edited_df["선택"] == True]["id"].tolist()
-            st.session_state.selected_review_notes = [note for note in st.session_state.notes if note['id'] in selected_notes_from_editor_ids]
+            selected_note_ids = []
+
+            for note in st.session_state.notes:
+                label = f"[{note['title']}] - 다음 복습일: {note['next_review_date'].strftime('%Y-%m-%d')}"
+                if st.checkbox(label, key=f"select_note_{note['id']}"):
+                    selected_note_ids.append(note['id'])
+
+            st.session_state.selected_review_notes = [
+                note for note in st.session_state.notes if note['id'] in selected_note_ids
+            ]
 
             st.markdown("---")
 
@@ -396,11 +382,10 @@ elif st.session_state.page == 'manual_review':
             else:
                 if st.button(f"선택된 노트 복습 시작 ({len(st.session_state.selected_review_notes)}개)", key="start_manual_review"):
                     st.session_state.current_review_index = 0
-                    st.rerun() # 복습 모듈로 진입하기 위해 새로고침
-        
-        # 복습이 시작되었거나 진행 중인 경우, 또는 모든 복습이 완료된 경우
-        # review_module 내부에서 모든 상태 관리 및 UI 표시를 담당
-        else: # 이미 노트가 선택되었거나 복습이 진행 중일 때만 review_module 호출
+                    st.rerun()  # 복습 모듈 진입
+
+        else:
+            # 선택 완료 또는 복습 진행 중일 경우
             review_module(st.session_state.selected_review_notes)
 
 
