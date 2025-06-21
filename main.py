@@ -326,28 +326,6 @@ def review_module(review_items):
         st.rerun() # UI 업데이트
 
 
-# --- 오늘의 복습 페이지 ---
-elif st.session_state.page == 'review':
-    st.title("📚 오늘의 복습 시작!")
-    st.write("기억을 되살리고 장기 기억으로 전환할 시간입니다!")
-    st.session_state.is_manual_review = False # 자동 복습 모드
-
-    today = datetime.now().date()
-    
-    # 오늘 복습할 항목 필터링 (아직 복습하지 않은 항목)
-    # current_review_index가 0일 때만 목록을 다시 불러오도록 하여, 새로고침 시에도 기존 복습 상태 유지
-    if not st.session_state.today_review_items or st.session_state.current_review_index == 0:
-        st.session_state.today_review_items = [
-            note for note in st.session_state.notes
-            if note['next_review_date'] and note['next_review_date'] <= today
-        ]
-        # 오래된 복습일수록 먼저 보여주기 위해 정렬
-        st.session_state.today_review_items.sort(key=lambda x: x['next_review_date'])
-
-    # 복습 모듈 호출
-    # review_module 내부에서 모든 상태 관리 및 UI 표시를 담당
-    review_module(st.session_state.today_review_items)
-
 
 # --- 선택 복습 페이지 ---
 elif st.session_state.page == 'manual_review':
