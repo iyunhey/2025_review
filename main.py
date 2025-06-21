@@ -173,6 +173,7 @@ def review_module(review_items):
     today = datetime.now().date()
     num_to_review = len(review_items)
 
+    # 복습할 항목이 없는 경우
     if not review_items:
         st.info("🎉 현재 복습할 노트가 없습니다! 새 노트를 추가하거나 잠시 쉬어가세요.")
         st.markdown("---")
@@ -180,137 +181,15 @@ def review_module(review_items):
         if st.button("새 노트 추가하러 가기", key="review_go_add_note_common"):
             go_to_page('add_note')
         st.session_state.current_review_index = 0
+        st.session_state.today_review_items = [] # 오늘의 복습 목록 초기화
+        st.session_state.selected_review_notes = [] # 선택 복습 목록 초기화
         return # 복습할 항목이 없으면 함수 종료
 
     # 현재 복습 진행 상황
     st.subheader(f"✅ 복습 진행 상황: {st.session_state.current_review_index + 1} / {num_to_review}")
 
-    if st.session_state.current_review_index < num_to_review:
-        current_note = review_items[st.session_state.current_review_index]
-
-        st.markdown(f"### **'{current_note['title']}'**")
-        
-        # 복습 모드 선택 (기본은 추천 모드)
-        selected_review_mode = st.radio(
-            "복습 모드 선택:",
-            ["플래시카드", "주관식"],
-            index=0 if current_note['initial_review_mode'] == '플래시카드' else 1,
-            key=f"mode_select_{current_note['id']}_{st.session_state.current_review_index}_{st.session_state.is_manual_review}" # key 고유하게 만들기
-        )
-
-        st.write("---")
-
-        # 플래시카드 모드
-        if selected_review_mode == "플래시카드":
-            front_content = current_note['content'].get('front') or current_note['content'].get('question')
-            back_content = current_note['content'].get('back') or current_note['content'].get('answer')
-
-            st.subheader("💡 앞면")
-            st.write(f"**{front_content}**")
-            
-            # 뒷면 확인 상태를 세션에 저장하여 유지
-            unique_key_show_back = f"show_back_{current_note['id']}_{st.session_state.current_review_index}_{st.session_state.is_manual_review}"
-            if unique_key_show_back not in st.session_state:
-                st.session_state[unique_key_show_back] = False
-
-            if st.button("뒷면 확인", key=f"show_back_btn_{current_note['id']}_{st.session_state.current_review_index}_{st.session_state.is_manual_review}"):
-                st.session_state[unique_key_show_back] = True
-                st.rerun() # 뒷면 표시를 위해 새로고침
-
-            if st.session_state[unique_key_show_back]:
-                st.subheader("✅ 뒷면")
-                st.info(f"**{back_content}**")
-        
-        # 주관식 모드 (Q&A 형식 노트에 적합)
-        elif selected_review_mode == "주관식":
-            question_content = current_note['content'].get('question') or current_note['content'].get('front')
-            answer_content = current_note['content'].get('answer') or current_note['content'].get('back')
-
-            st.subheader("❓ 질문")
-            st.write(f"**{question_content}**")
-            
-            # 답변 입력 및 확인 상태를 세션에 저장
-            unique_key_user_answer = f"user_answer_{current_note['id']}_{st.session_state.current_review_index}_{st.session_state.is_manual_review}"
-            unique_key_answer_checked = f"answer_checked_{current_note['id']}_{st.session_state.current_review_index}_{st.session_state.is_manual_review}"
-
-            if unique_key_user_answer not in st.session_state:
-                st.session_state[unique_key_user_answer] = ""
-            if unique_key_answer_checked not in st.session_state:
-                st.session_state[unique_key_answer_checked] = False
-
-            user_answer = st.text_area("답변을 입력하세요.", value=st.session_state[unique_key_user_answer], key=f"user_answer_text_{current_note['id']}_{st.session_state.current_review_index}_{st.session_state.is_manual_review}")
-            
-            if st.button("답변 확인", key=f"check_answer_btn_{current_note['id']}_{st.session_state.current_review_index}_{st.session_state.is_manual_review}"):
-                st.session_state[unique_key_user_answer] = user_answer # 입력된 답변 저장
-                st.session_state[unique_key_answer_checked] = True
-                st.rerun() # 답변 확인 결과를 표시하기 위해 새로고침
-
-            if st.session_state[unique_key_answer_checked]:
-                st.subheader("✅ 정답")
-                st.info(f"**{answer_content}**")
-                if st.session_state[unique_key_user_answer].strip().lower() == answer_content.strip().lower():
-                    st.success("정답입니다!")
-                else:
-                    st.error("아쉽지만 틀렸습니다. 다시 한번 확인해보세요.")
-
-        st.write("---")
-        st.subheader("이해 난이도 평가:")
-        
-        # 난이도 평가 버튼을 누르면 바로 다음 노트로 이동 및 데이터 업데이트
-        col1, col2, col3, col4 = st.columns(4)
-        difficulty_chosen = False
-        selected_difficulty = None # 선택된 난이도 초기화
-
-        with col1:
-            if st.button("😊 쉬웠음", key=f"diff_easy_{current_note['id']}_{st.session_state.current_review_index}_{st.session_state.is_manual_review}"):
-                selected_difficulty = "쉬웠음"
-                difficulty_chosen = True
-        with col2:
-            if st.button("🙂 보통", key=f"diff_normal_{current_note['id']}_{st.session_state.current_review_index}_{st.session_state.is_manual_review}"):
-                selected_difficulty = "보통"
-                difficulty_chosen = True
-        with col3:
-            if st.button("🙁 어려웠음", key=f"diff_hard_{current_note['id']}_{st.session_state.current_review_index}_{st.session_state.is_manual_review}"):
-                selected_difficulty = "어려웠음"
-                difficulty_chosen = True
-        with col4:
-            if st.button("😩 전혀 기억 안 남", key=f"diff_forgot_{current_note['id']}_{st.session_state.current_review_index}_{st.session_state.is_manual_review}"):
-                selected_difficulty = "전혀 기억나지 않음"
-                difficulty_chosen = True
-
-        if difficulty_chosen and selected_difficulty: # 선택된 난이도가 있을 때만 진행
-            # 다음 복습일 계산 및 업데이트
-            next_review_date, next_interval = calculate_next_review_date(
-                today,
-                selected_difficulty,
-                current_note['current_interval']
-            )
-
-            current_note['last_reviewed_date'] = today
-            current_note['next_review_date'] = next_review_date
-            current_note['current_interval'] = next_interval
-            current_note['review_history'].append({
-                'date': today,
-                'difficulty': selected_difficulty,
-                'interval_used': next_interval
-            })
-
-            if selected_difficulty in ["어려웠음", "전혀 기억나지 않음"]:
-                st.warning("이 노트를 오답 노트에 추가합니다. 다음에 더 자주 복습하게 됩니다!")
-            else:
-                st.success(f"난이도 '{selected_difficulty}'로 평가되었습니다. 다음 복습은 **{next_review_date.strftime('%Y년 %m월 %d일')}**입니다.")
-
-            # 세션 상태에 저장된 임시 변수들 초기화 (다음 복습 항목을 위해)
-            for key_prefix in [f"show_back_{current_note['id']}", f"user_answer_{current_note['id']}", f"answer_checked_{current_note['id']}"]:
-                for key in list(st.session_state.keys()):
-                    # 현재 노트 ID와 관련된 모든 임시 키 삭제
-                    if key.startswith(key_prefix) and str(current_note['id']) in key:
-                        del st.session_state[key]
-            
-            # 다음 항목으로 이동
-            st.session_state.current_review_index += 1
-            st.rerun() # UI 업데이트
-    else:
+    # 모든 복습을 완료한 경우
+    if st.session_state.current_review_index >= num_to_review:
         st.success("🎉 복습을 모두 완료했습니다! 정말 수고하셨습니다!")
         st.session_state.today_review_items = [] # 오늘의 복습 목록 초기화
         st.session_state.selected_review_notes = [] # 선택 복습 목록 초기화
@@ -318,6 +197,134 @@ def review_module(review_items):
         st.session_state.is_manual_review = False
         if st.button("학습 통계 보러가기", key="review_done_stats_common"):
             go_to_page('stats')
+        return # 복습 완료 후 함수 종료
+
+    # 복습 진행 중
+    current_note = review_items[st.session_state.current_review_index]
+
+    st.markdown(f"### **'{current_note['title']}'**")
+    
+    # 복습 모드 선택 (기본은 추천 모드)
+    selected_review_mode = st.radio(
+        "복습 모드 선택:",
+        ["플래시카드", "주관식"],
+        index=0 if current_note['initial_review_mode'] == '플래시카드' else 1,
+        key=f"mode_select_{current_note['id']}_{st.session_state.current_review_index}_{st.session_state.is_manual_review}" # key 고유하게 만들기
+    )
+
+    st.write("---")
+
+    # 플래시카드 모드
+    if selected_review_mode == "플래시카드":
+        front_content = current_note['content'].get('front') or current_note['content'].get('question')
+        back_content = current_note['content'].get('back') or current_note['content'].get('answer')
+
+        st.subheader("💡 앞면")
+        st.write(f"**{front_content}**")
+        
+        # 뒷면 확인 상태를 세션에 저장하여 유지
+        unique_key_show_back = f"show_back_{current_note['id']}_{st.session_state.current_review_index}_{st.session_state.is_manual_review}"
+        if unique_key_show_back not in st.session_state:
+            st.session_state[unique_key_show_back] = False
+
+        if st.button("뒷면 확인", key=f"show_back_btn_{current_note['id']}_{st.session_state.current_review_index}_{st.session_state.is_manual_review}"):
+            st.session_state[unique_key_show_back] = True
+            st.rerun() # 뒷면 표시를 위해 새로고침
+
+        if st.session_state[unique_key_show_back]:
+            st.subheader("✅ 뒷면")
+            st.info(f"**{back_content}**")
+    
+    # 주관식 모드 (Q&A 형식 노트에 적합)
+    elif selected_review_mode == "주관식":
+        question_content = current_note['content'].get('question') or current_note['content'].get('front')
+        answer_content = current_note['content'].get('answer') or current_note['content'].get('back')
+
+        st.subheader("❓ 질문")
+        st.write(f"**{question_content}**")
+        
+        # 답변 입력 및 확인 상태를 세션에 저장
+        unique_key_user_answer = f"user_answer_{current_note['id']}_{st.session_state.current_review_index}_{st.session_state.is_manual_review}"
+        unique_key_answer_checked = f"answer_checked_{current_note['id']}_{st.session_state.current_review_index}_{st.session_state.is_manual_review}"
+
+        if unique_key_user_answer not in st.session_state:
+            st.session_state[unique_key_user_answer] = ""
+        if unique_key_answer_checked not in st.session_state:
+            st.session_state[unique_key_answer_checked] = False
+
+        user_answer = st.text_area("답변을 입력하세요.", value=st.session_state[unique_key_user_answer], key=f"user_answer_text_{current_note['id']}_{st.session_state.current_review_index}_{st.session_state.is_manual_review}")
+        
+        if st.button("답변 확인", key=f"check_answer_btn_{current_note['id']}_{st.session_state.current_review_index}_{st.session_state.is_manual_review}"):
+            st.session_state[unique_key_user_answer] = user_answer # 입력된 답변 저장
+            st.session_state[unique_key_answer_checked] = True
+            st.rerun() # 답변 확인 결과를 표시하기 위해 새로고침
+
+        if st.session_state[unique_key_answer_checked]:
+            st.subheader("✅ 정답")
+            st.info(f"**{answer_content}**")
+            if st.session_state[unique_key_user_answer].strip().lower() == answer_content.strip().lower():
+                st.success("정답입니다!")
+            else:
+                st.error("아쉽지만 틀렸습니다. 다시 한번 확인해보세요.")
+
+    st.write("---")
+    st.subheader("이해 난이도 평가:")
+    
+    # 난이도 평가 버튼을 누르면 바로 다음 노트로 이동 및 데이터 업데이트
+    col1, col2, col3, col4 = st.columns(4)
+    difficulty_chosen = False
+    selected_difficulty = None # 선택된 난이도 초기화
+
+    with col1:
+        if st.button("😊 쉬웠음", key=f"diff_easy_{current_note['id']}_{st.session_state.current_review_index}_{st.session_state.is_manual_review}"):
+            selected_difficulty = "쉬웠음"
+            difficulty_chosen = True
+    with col2:
+        if st.button("🙂 보통", key=f"diff_normal_{current_note['id']}_{st.session_state.current_review_index}_{st.session_state.is_manual_review}"):
+            selected_difficulty = "보통"
+            difficulty_chosen = True
+    with col3:
+        if st.button("🙁 어려웠음", key=f"diff_hard_{current_note['id']}_{st.session_state.current_review_index}_{st.session_state.is_manual_review}"):
+            selected_difficulty = "어려웠음"
+            difficulty_chosen = True
+    with col4:
+        if st.button("😩 전혀 기억 안 남", key=f"diff_forgot_{current_note['id']}_{st.session_state.current_review_index}_{st.session_state.is_manual_review}"):
+            selected_difficulty = "전혀 기억나지 않음"
+            difficulty_chosen = True
+
+    if difficulty_chosen and selected_difficulty: # 선택된 난이도가 있을 때만 진행
+        # 다음 복습일 계산 및 업데이트
+        next_review_date, next_interval = calculate_next_review_date(
+            today,
+            selected_difficulty,
+            current_note['current_interval']
+        )
+
+        current_note['last_reviewed_date'] = today
+        current_note['next_review_date'] = next_review_date
+        current_note['current_interval'] = next_interval
+        current_note['review_history'].append({
+            'date': today,
+            'difficulty': selected_difficulty,
+            'interval_used': next_interval
+        })
+
+        if selected_difficulty in ["어려웠음", "전혀 기억나지 않음"]:
+            st.warning("이 노트를 오답 노트에 추가합니다. 다음에 더 자주 복습하게 됩니다!")
+        else:
+            st.success(f"난이도 '{selected_difficulty}'로 평가되었습니다. 다음 복습은 **{next_review_date.strftime('%Y년 %m월 %d일')}**입니다.")
+
+        # 세션 상태에 저장된 임시 변수들 초기화 (다음 복습 항목을 위해)
+        for key_prefix in [f"show_back_{current_note['id']}", f"user_answer_{current_note['id']}", f"answer_checked_{current_note['id']}"]:
+            for key in list(st.session_state.keys()):
+                # 현재 노트 ID와 관련된 모든 임시 키 삭제
+                if key.startswith(key_prefix) and str(current_note['id']) in key:
+                    del st.session_state[key]
+        
+        # 다음 항목으로 이동
+        st.session_state.current_review_index += 1
+        st.rerun() # UI 업데이트
+
 
 # --- 오늘의 복습 페이지 ---
 elif st.session_state.page == 'review':
@@ -328,6 +335,7 @@ elif st.session_state.page == 'review':
     today = datetime.now().date()
     
     # 오늘 복습할 항목 필터링 (아직 복습하지 않은 항목)
+    # current_review_index가 0일 때만 목록을 다시 불러오도록 하여, 새로고침 시에도 기존 복습 상태 유지
     if not st.session_state.today_review_items or st.session_state.current_review_index == 0:
         st.session_state.today_review_items = [
             note for note in st.session_state.notes
@@ -350,39 +358,54 @@ elif st.session_state.page == 'manual_review':
         if st.button("새 노트 추가하러 가기", key="manual_review_go_add_note"):
             go_to_page('add_note')
     else:
-        # 사용자가 노트 선택
-        st.subheader("📚 복습할 노트 선택")
-        selected_note_ids = []
-        for note in st.session_state.notes:
-            checkbox_label = f"[{note['type'].split('(')[0]}] {note['title']} (다음 복습: {note['next_review_date'].strftime('%Y-%m-%d')})"
-            if st.checkbox(checkbox_label, key=f"select_note_{note['id']}", value=note['id'] in [n['id'] for n in st.session_state.selected_review_notes]):
-                selected_note_ids.append(note['id'])
+        # 사용자가 노트 선택 (복습 시작 전)
+        if st.session_state.current_review_index == 0: # 아직 복습을 시작하지 않은 상태
+            st.subheader("📚 복습할 노트 선택")
+            selected_note_ids = []
+            
+            # 모든 노트를 데이터프레임으로 보여주기
+            display_notes = []
+            for note in st.session_state.notes:
+                display_notes.append({
+                    "id": note['id'],
+                    "선택": False, # 초기 상태는 선택 안 됨
+                    "제목": note['title'],
+                    "유형": note['type'].split('(')[0],
+                    "다음 복습일": note['next_review_date'].strftime('%Y-%m-%d')
+                })
+            
+            # 선택 가능하도록 Streamlit의 data_editor 사용 (Streamlit 1.23.0 이상 필요)
+            # data_editor는 사용자가 직접 체크박스를 조작할 수 있게 해줌
+            edited_df = st.data_editor(
+                pd.DataFrame(display_notes),
+                column_config={"선택": st.column_config.CheckboxColumn(required=True)},
+                hide_index=True,
+                key="manual_review_select_notes_editor"
+            )
 
-        # 선택된 노트 목록 업데이트
-        st.session_state.selected_review_notes = [note for note in st.session_state.notes if note['id'] in selected_note_ids]
-        
-        st.markdown("---")
+            # 선택된 노트 ID 추출
+            selected_notes_from_editor = edited_df[edited_df["선택"] == True]["id"].tolist()
+            st.session_state.selected_review_notes = [note for note in st.session_state.notes if note['id'] in selected_notes_from_editor]
 
-        if not st.session_state.selected_review_notes:
-            st.warning("복습할 노트를 하나 이상 선택해주세요.")
-            # 선택된 노트가 없으면 인덱스 초기화
-            st.session_state.current_review_index = 0
-        else:
-            if st.button(f"선택된 노트 복습 시작 ({len(st.session_state.selected_review_notes)}개)", key="start_manual_review"):
-                # 복습 시작 시, 복습 인덱스 초기화
-                st.session_state.current_review_index = 0
-                st.rerun() # 복습 모듈로 진입하기 위해 새로고침
-
-            # 복습 진행 중일 때만 모듈 호출 (이미 시작 버튼을 눌러 인덱스가 0으로 초기화된 후)
-            if st.session_state.current_review_index < len(st.session_state.selected_review_notes):
+            if not st.session_state.selected_review_notes:
+                st.warning("복습할 노트를 하나 이상 선택해주세요.")
+            else:
                 st.markdown("---")
-                review_module(st.session_state.selected_review_notes)
-            else: # 모든 복습 완료 후
-                st.success("🎉 선택된 노트 복습을 모두 완료했습니다!")
-                if st.button("다시 선택 복습 시작", key="reset_manual_review"):
-                    st.session_state.selected_review_notes = []
+                if st.button(f"선택된 노트 복습 시작 ({len(st.session_state.selected_review_notes)}개)", key="start_manual_review"):
                     st.session_state.current_review_index = 0
-                    st.rerun()
+                    st.rerun() # 복습 모듈로 진입하기 위해 새로고침
+
+        # 복습 진행 중일 때만 모듈 호출
+        if st.session_state.current_review_index < len(st.session_state.selected_review_notes):
+            st.markdown("---")
+            review_module(st.session_state.selected_review_notes)
+        else: # 모든 복습 완료 후
+            st.success("🎉 선택된 노트 복습을 모두 완료했습니다!")
+            # 복습 완료 후 상태를 초기화하여 다시 선택할 수 있도록 함
+            st.session_state.selected_review_notes = [] 
+            st.session_state.current_review_index = 0
+            if st.button("다시 선택 복습 시작", key="reset_manual_review"):
+                st.rerun()
 
 
 # --- 내 학습 통계 페이지 ---
