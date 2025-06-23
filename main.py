@@ -8,14 +8,11 @@ def initialize_session_state():
         st.session_state.notes = [] # 모든 노트를 저장할 리스트
     if 'page' not in st.session_state:
         st.session_state.page = 'home' # 현재 페이지 관리
-    if 'current_review_index' not in st.session_state:
-        st.session_state.current_review_index = 0
-    if 'today_review_items' not in st.session_state:
-        st.session_state.today_review_items = []
+    # 'current_review_index'와 'today_review_items'는 전체 복습 목록 순회용이므로, 개별 복습 시에는 필요 없음
+    if 'selected_note_for_review_id' not in st.session_state: # 선택된 노트의 ID를 저장
+        st.session_state.selected_note_for_review_id = None
     if 'user_goal' not in st.session_state:
         st.session_state.user_goal = ""
-    if 'selected_note_for_review' not in st.session_state:
-        st.session_state.selected_note_for_review = None # 사용자가 선택한 복습 노트
 
 # --- 복습 주기 계산 함수 ---
 def calculate_next_review_date(current_date, difficulty, last_interval=0):
@@ -42,19 +39,12 @@ def calculate_next_review_date(current_date, difficulty, last_interval=0):
 # --- 페이지 이동 함수 ---
 def go_to_page(page_name):
     st.session_state.page = page_name
-    st.session_state.current_review_index = 0 # 페이지 이동 시 복습 인덱스 초기화
-    st.session_state.today_review_items = [] # 오늘 복습 목록도 초기화
-    st.session_state.selected_note_for_review = None # 선택된 노트 초기화
+    # 페이지 이동 시 현재 복습 중인 노트 ID는 유지 (single_review에서 사용)
+    # 다른 복습 관련 임시 변수들은 초기화
+    if page_name != 'single_review': # single_review 페이지로 갈 때는 초기화하지 않음
+        st.session_state.selected_note_for_review_id = None
+        # 필요하다면 다른 임시 상태 변수들도 여기서 초기화
     st.rerun()
-
-# --- 특정 노트 복습 시작 함수 ---
-def start_specific_review(note_id):
-    for note in st.session_state.notes:
-        if note['id'] == note_id:
-            st.session_state.selected_note_for_review = note
-            go_to_page('single_review')
-            return
-    st.error("선택하신 노트를 찾을 수 없습니다.")
 
 # --- Streamlit 앱 시작 ---
 st.set_page_config(layout="wide", page_title="망각 곡선 극복 챌린지")
@@ -116,7 +106,7 @@ elif st.session_state.page == 'add_note':
         question = st.text_area("질문 (앞면)", help="스스로에게 질문할 내용을 입력하세요.")
         answer = st.text_area("답변 (뒷면)", help="질문에 대한 정답을 입력하세요.")
         content = {"question": question, "answer": answer}
-        review_mode = "주관식" # 변경: 객관식은 구현 복잡성으로 인해 일단 주관식으로 통일
+        review_mode = "주관식" 
     else: # 외우기(플래시카드)
         front = st.text_area("앞면 (단어/개념)", help="카드 앞면에 보일 내용을 입력하세요. (예: 'apple', '뉴턴의 운동 제1법칙')")
         back = st.text_area("뒷면 (의미/설명)", help="카드 뒷면에 보일 내용을 입력하세요. (예: '사과', '관성의 법칙')")
@@ -197,18 +187,27 @@ elif st.session_state.page == 'review_list':
             with col_date:
                 st.write(f"복습 예정일: {note['next_review_date'].strftime('%Y-%m-%d')}")
             with col_button:
+                # 버튼 클릭 시 해당 노트의 ID를 세션에 저장 후 단일 복습 페이지로 이동
                 if st.button("복습 시작", key=f"start_review_{note['id']}"):
-                    start_specific_review(note['id'])
+                    st.session_state.selected_note_for_review_id = note['id']
+                    go_to_page('single_review')
             st.markdown("---")
 
 # --- 단일 노트 복습 페이지 (선택된 노트만 보여줌) ---
 elif st.session_state.page == 'single_review':
-    if st.session_state.selected_note_for_review is None:
-        st.warning("복습할 노트가 선택되지 않았습니다. '오늘의 복습 목록'에서 노트를 선택해주세요.")
+    # selected_note_for_review_id를 사용하여 노트 찾기
+    current_note = None
+    if st.session_state.selected_note_for_review_id is not None:
+        for note in st.session_state.notes:
+            if note['id'] == st.session_state.selected_note_for_review_id:
+                current_note = note
+                break
+
+    if current_note is None:
+        st.warning("복습할 노트가 선택되지 않았거나 찾을 수 없습니다. '오늘의 복습 목록' 또는 '내 학습 통계'에서 노트를 선택해주세요.")
         if st.button("오늘의 복습 목록으로 돌아가기"):
             go_to_page('review_list')
     else:
-        current_note = st.session_state.selected_note_for_review
         st.title(f"📚 복습: '{current_note['title']}'")
         st.write(f"**생성일:** {current_note['created_date'].strftime('%Y-%m-%d')} | **마지막 복습일:** {current_note['last_reviewed_date'].strftime('%Y-%m-%d') if current_note['last_reviewed_date'] else 'N/A'}")
         
@@ -232,14 +231,17 @@ elif st.session_state.page == 'single_review':
             st.subheader("💡 앞면")
             st.write(f"**{front_content}**")
             
-            if f"show_back_single_{current_note['id']}" not in st.session_state:
-                st.session_state[f"show_back_single_{current_note['id']}"] = False
+            # Show back content state management
+            # 각 노트의 플래시카드 상태를 고유하게 관리하도록 키 변경
+            flashcard_key = f"show_back_single_flashcard_{current_note['id']}"
+            if flashcard_key not in st.session_state:
+                st.session_state[flashcard_key] = False
 
             if st.button("뒷면 확인", key=f"show_back_btn_single_{current_note['id']}"):
-                st.session_state[f"show_back_single_{current_note['id']}"] = True
-                st.rerun()
+                st.session_state[flashcard_key] = True
+                # st.rerun() # 뒷면 표시를 위해 새로고침 (필요에 따라 주석 처리)
 
-            if st.session_state[f"show_back_single_{current_note['id']}"]:
+            if st.session_state[flashcard_key]:
                 st.subheader("✅ 뒷면")
                 st.info(f"**{back_content}**")
         
@@ -251,25 +253,29 @@ elif st.session_state.page == 'single_review':
             st.subheader("❓ 질문")
             st.write(f"**{question_content}**")
             
-            if f"user_answer_single_{current_note['id']}" not in st.session_state:
-                st.session_state[f"user_answer_single_{current_note['id']}"] = ""
-            if f"answer_checked_single_{current_note['id']}" not in st.session_state:
-                st.session_state[f"answer_checked_single_{current_note['id']}"] = False
+            # User answer state management
+            answer_key_user = f"user_answer_single_qa_{current_note['id']}"
+            answer_key_checked = f"answer_checked_single_qa_{current_note['id']}"
 
-            user_answer = st.text_area("답변을 입력하세요.", value=st.session_state[f"user_answer_single_{current_note['id']}"], key=f"user_answer_text_single_{current_note['id']}")
+            if answer_key_user not in st.session_state:
+                st.session_state[answer_key_user] = ""
+            if answer_key_checked not in st.session_state:
+                st.session_state[answer_key_checked] = False
+
+            user_answer = st.text_area("답변을 입력하세요.", value=st.session_state[answer_key_user], key=f"user_answer_text_single_{current_note['id']}")
             
             if st.button("답변 확인", key=f"check_answer_btn_single_{current_note['id']}"):
-                st.session_state[f"user_answer_single_{current_note['id']}"] = user_answer
-                st.session_state[f"answer_checked_single_{current_note['id']}"] = True
-                st.rerun()
+                st.session_state[answer_key_user] = user_answer
+                st.session_state[answer_key_checked] = True
+                # st.rerun() # 답변 확인 결과를 표시하기 위해 새로고침 (필요에 따라 주석 처리)
 
-            if st.session_state[f"answer_checked_single_{current_note['id']}"]:
+            if st.session_state[answer_key_checked]:
                 st.subheader("✅ 정답")
                 st.info(f"**{answer_content}**")
-                if st.session_state[f"user_answer_single_{current_note['id']}"].strip().lower() == answer_content.strip().lower():
-                    st.success("정답입니다!")
+                if st.session_state[answer_key_user].strip().lower() == answer_content.strip().lower():
+                    st.success("정답입니다! 🥳")
                 else:
-                    st.error("아쉽지만 틀렸습니다. 다시 한번 확인해보세요.")
+                    st.error("아쉽지만 틀렸습니다. 다시 한번 확인해보세요. 😥")
 
         st.write("---")
         st.subheader("이해 난이도 평가:")
@@ -317,16 +323,14 @@ elif st.session_state.page == 'single_review':
             else:
                 st.success(f"난이도 '{selected_difficulty}'로 평가되었습니다. 다음 복습은 **{next_review_date.strftime('%Y년 %m월 %d일')}**입니다.")
 
-            # 세션 상태에 저장된 임시 변수들 초기화 (다음 복습 항목을 위해)
-            # 단일 복습 모드에서만 사용되는 키 초기화
-            for key_prefix in [f"show_back_single_{current_note['id']}", f"user_answer_single_{current_note['id']}", f"answer_checked_single_{current_note['id']}"]:
-                for key in list(st.session_state.keys()):
-                    if key.startswith(key_prefix):
-                        del st.session_state[key]
+            # 단일 복습 완료 후, 관련 세션 상태 키 초기화
+            # 현재 복습 중인 노트 ID도 초기화하여 다음 복습 준비
+            del st.session_state[f"show_back_single_flashcard_{current_note['id']}"]
+            del st.session_state[f"user_answer_single_qa_{current_note['id']}"]
+            del st.session_state[f"answer_checked_single_qa_{current_note['id']}"]
             
-            # 선택된 노트 정보 초기화 및 복습 목록으로 돌아가기
-            st.session_state.selected_note_for_review = None
-            go_to_page('review_list')
+            st.session_state.selected_note_for_review_id = None # 중요: 복습 완료 후 ID 초기화
+            go_to_page('review_list') # 복습 목록으로 돌아감
 
 
 # --- 내 학습 통계 & 모든 노트 페이지 ---
@@ -376,12 +380,16 @@ elif st.session_state.page == 'stats':
             
             col_input, col_button = st.columns([0.8, 0.2])
             with col_input:
-                note_id_to_review = st.number_input("복습할 노트 ID 입력:", min_value=0, max_value=len(st.session_state.notes)-1 if st.session_state.notes else 0, key="id_to_review")
+                # 전체 노트 개수를 기반으로 max_value 설정
+                max_note_id = len(st.session_state.notes) - 1 if st.session_state.notes else 0
+                note_id_to_review = st.number_input("복습할 노트 ID 입력:", min_value=0, max_value=max_note_id, value=0, key="id_to_review")
             with col_button:
                 st.write("") # 공간 확보
                 st.write("") # 공간 확보
+                # 버튼 클릭 시 해당 노트의 ID를 세션에 저장 후 단일 복습 페이지로 이동
                 if st.button("선택한 노트 복습 시작", key="start_selected_note_review"):
-                    start_specific_review(int(note_id_to_review))
+                    st.session_state.selected_note_for_review_id = int(note_id_to_review)
+                    go_to_page('single_review')
         else:
             st.info("검색 결과가 없습니다.")
 
@@ -410,3 +418,4 @@ elif st.session_state.page == 'stats':
         st.subheader("💡 팁: 복습 스케줄")
         st.write("각 노트의 다음 복습 예정일은 당신의 기억 난이도 평가에 따라 자동으로 조절됩니다.")
         st.write("자주 틀리는 내용은 더 짧은 주기로, 쉽게 기억하는 내용은 더 긴 주기로 복습하게 됩니다.")
+
