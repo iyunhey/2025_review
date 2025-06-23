@@ -325,10 +325,13 @@ elif st.session_state.page == 'single_review':
             answer_key_user = f"user_answer_single_qa_{current_note['id']}"
             answer_key_checked = f"answer_checked_single_qa_{current_note['id']}"
 
-            # .pop() 메서드를 사용하여 키가 없어도 에러 없이 안전하게 삭제
-            st.session_state.pop(flashcard_key, None)
-            st.session_state.pop(answer_key_user, None)
-            st.session_state.pop(answer_key_checked, None)
+            # 각 키가 session_state에 존재하는지 확인 후 삭제
+            if flashcard_key in st.session_state:
+                del st.session_state[flashcard_key]
+            if answer_key_user in st.session_state:
+                del st.session_state[answer_key_user]
+            if answer_key_checked in st.session_state:
+                del st.session_state[answer_key_checked]
             # --- 수정된 부분 끝 ---
             
             st.session_state.selected_note_for_review_id = None # 중요: 복습 완료 후 ID 초기화
@@ -420,5 +423,8 @@ elif st.session_state.page == 'stats':
         st.subheader("💡 팁: 복습 스케줄")
         st.write("각 노트의 다음 복습 예정일은 당신의 기억 난이도 평가에 따라 자동으로 조절됩니다.")
         st.write("자주 틀리는 내용은 더 짧은 주기로, 쉽게 기억하는 내용은 더 긴 주기로 복습하게 됩니다.")
+
+
+
 
 
