@@ -8,7 +8,6 @@ def initialize_session_state():
         st.session_state.notes = [] # 모든 노트를 저장할 리스트
     if 'page' not in st.session_state:
         st.session_state.page = 'home' # 현재 페이지 관리
-    # 'current_review_index'와 'today_review_items'는 전체 복습 목록 순회용이므로, 개별 복습 시에는 필요 없음
     if 'selected_note_for_review_id' not in st.session_state: # 선택된 노트의 ID를 저장
         st.session_state.selected_note_for_review_id = None
     if 'user_goal' not in st.session_state:
@@ -43,7 +42,6 @@ def go_to_page(page_name):
     # 다른 복습 관련 임시 변수들은 초기화
     if page_name != 'single_review': # single_review 페이지로 갈 때는 초기화하지 않음
         st.session_state.selected_note_for_review_id = None
-        # 필요하다면 다른 임시 상태 변수들도 여기서 초기화
     st.rerun()
 
 # --- Streamlit 앱 시작 ---
@@ -232,14 +230,13 @@ elif st.session_state.page == 'single_review':
             st.write(f"**{front_content}**")
             
             # Show back content state management
-            # 각 노트의 플래시카드 상태를 고유하게 관리하도록 키 변경
             flashcard_key = f"show_back_single_flashcard_{current_note['id']}"
             if flashcard_key not in st.session_state:
                 st.session_state[flashcard_key] = False
 
             if st.button("뒷면 확인", key=f"show_back_btn_single_{current_note['id']}"):
                 st.session_state[flashcard_key] = True
-                # st.rerun() # 뒷면 표시를 위해 새로고침 (필요에 따라 주석 처리)
+                # st.rerun() # 뒷면 표시를 위해 새로고침 (필요에 따라 주석 처리) - 제거해도 괜찮음
 
             if st.session_state[flashcard_key]:
                 st.subheader("✅ 뒷면")
@@ -267,7 +264,7 @@ elif st.session_state.page == 'single_review':
             if st.button("답변 확인", key=f"check_answer_btn_single_{current_note['id']}"):
                 st.session_state[answer_key_user] = user_answer
                 st.session_state[answer_key_checked] = True
-                # st.rerun() # 답변 확인 결과를 표시하기 위해 새로고침 (필요에 따라 주석 처리)
+                # st.rerun() # 답변 확인 결과를 표시하기 위해 새로고침 (필요에 따라 주석 처리) - 제거해도 괜찮음
 
             if st.session_state[answer_key_checked]:
                 st.subheader("✅ 정답")
@@ -323,11 +320,16 @@ elif st.session_state.page == 'single_review':
             else:
                 st.success(f"난이도 '{selected_difficulty}'로 평가되었습니다. 다음 복습은 **{next_review_date.strftime('%Y년 %m월 %d일')}**입니다.")
 
-            # 단일 복습 완료 후, 관련 세션 상태 키 초기화
-            # 현재 복습 중인 노트 ID도 초기화하여 다음 복습 준비
-            del st.session_state[f"show_back_single_flashcard_{current_note['id']}"]
-            del st.session_state[f"user_answer_single_qa_{current_note['id']}"]
-            del st.session_state[f"answer_checked_single_qa_{current_note['id']}"]
+            # --- 수정된 부분: 키 존재 여부 확인 후 삭제 ---
+            flashcard_key = f"show_back_single_flashcard_{current_note['id']}"
+            answer_key_user = f"user_answer_single_qa_{current_note['id']}"
+            answer_key_checked = f"answer_checked_single_qa_{current_note['id']}"
+
+            # .pop() 메서드를 사용하여 키가 없어도 에러 없이 안전하게 삭제
+            st.session_state.pop(flashcard_key, None)
+            st.session_state.pop(answer_key_user, None)
+            st.session_state.pop(answer_key_checked, None)
+            # --- 수정된 부분 끝 ---
             
             st.session_state.selected_note_for_review_id = None # 중요: 복습 완료 후 ID 초기화
             go_to_page('review_list') # 복습 목록으로 돌아감
@@ -418,4 +420,5 @@ elif st.session_state.page == 'stats':
         st.subheader("💡 팁: 복습 스케줄")
         st.write("각 노트의 다음 복습 예정일은 당신의 기억 난이도 평가에 따라 자동으로 조절됩니다.")
         st.write("자주 틀리는 내용은 더 짧은 주기로, 쉽게 기억하는 내용은 더 긴 주기로 복습하게 됩니다.")
+
 
